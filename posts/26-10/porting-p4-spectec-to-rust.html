@@ -4,8 +4,75 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Porting the OCaml Implementation of P4-SpecTec to Rust, using AI Agents - Jaehyun Lee</title>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,700;1,8..60,400;1,8..60,700&family=Noto+Serif+KR:wght@400;700&family=Source+Code+Pro:wght@400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,700;1,8..60,400;1,8..60,700&family=Noto+Serif+KR:wght@400;700&family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
 <style>
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    background-color: #ffffff;
+    color: #a0a0a0;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #a0a0a0;  padding-left: 4px; }
+div.sourceCode
+  { color: #1f1c1b; background-color: #ffffff; }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span { color: #1f1c1b; } /* Normal */
+code span.al { color: #bf0303; background-color: #f7e6e6; font-weight: bold; } /* Alert */
+code span.an { color: #ca60ca; } /* Annotation */
+code span.at { color: #0057ae; } /* Attribute */
+code span.bn { color: #b08000; } /* BaseN */
+code span.bu { color: #644a9b; font-weight: bold; } /* BuiltIn */
+code span.cf { color: #1f1c1b; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #924c9d; } /* Char */
+code span.cn { color: #aa5500; } /* Constant */
+code span.co { color: #898887; } /* Comment */
+code span.cv { color: #0095ff; } /* CommentVar */
+code span.do { color: #607880; } /* Documentation */
+code span.dt { color: #0057ae; } /* DataType */
+code span.dv { color: #b08000; } /* DecVal */
+code span.er { color: #bf0303; text-decoration: underline; } /* Error */
+code span.ex { color: #0095ff; font-weight: bold; } /* Extension */
+code span.fl { color: #b08000; } /* Float */
+code span.fu { color: #644a9b; } /* Function */
+code span.im { color: #ff5500; } /* Import */
+code span.in { color: #b08000; } /* Information */
+code span.kw { color: #1f1c1b; font-weight: bold; } /* Keyword */
+code span.op { color: #1f1c1b; } /* Operator */
+code span.ot { color: #006e28; } /* Other */
+code span.pp { color: #006e28; } /* Preprocessor */
+code span.re { color: #0057ae; background-color: #e0e9f8; } /* RegionMarker */
+code span.sc { color: #3daee9; } /* SpecialChar */
+code span.ss { color: #ff5500; } /* SpecialString */
+code span.st { color: #bf0303; } /* String */
+code span.va { color: #0057ae; } /* Variable */
+code span.vs { color: #bf0303; } /* VerbatimString */
+code span.wa { color: #bf0303; } /* Warning */
 body {
   font-family: "Source Serif 4", "Noto Serif KR", serif;
   font-size: 18px; line-height: 1.7;
@@ -23,6 +90,8 @@ blockquote + blockquote { margin-top: -0.4em; }
 code { font-family: "Source Code Pro", Menlo, Consolas, monospace; font-size: 0.85em; }
 pre { background: #f6f6f6; padding: 0.8em 1em; overflow-x: auto; line-height: 1.45; }
 pre code { font-size: 0.8em; }
+pre.sourceCode { overflow-x: auto; }
+pre > code.sourceCode > span { line-height: inherit; }
 .footnotes { font-size: 0.85em; line-height: 1.6; }
 .footnotes hr { width: 8em; margin-left: 0; }
 .footnotes ol { padding-left: 1.6em; }
@@ -157,13 +226,13 @@ cannot have non-pure premises alongside an otherwise premise</code></pre>
 <ul>
 <li>While porting the codebase incrementally, new functionality often needed to build on functions that had already been implemented. I observed that the agents would take a shortcut, adding ad-hoc control parameters to existing functions.</li>
 </ul>
-<pre class="rust"><code>// Before: the last argument selects the kind of relation
-let def = elab_rel_def(ctx, span, &amp;def.id, &amp;def.not_typ, &amp;def.hints, true)?;
-let def = elab_rel_def(ctx, span, &amp;def.id, &amp;def.not_typ, &amp;def.hints, false)?;
-
-// After: separate functions make the distinction explicit
-let def_il_kind = elab_extern_rel_def(ctx, &amp;extern_rel_def)?;
-let def_il_kind = elab_rel_def(ctx, &amp;rel_def)?;</code></pre>
+<div class="sourceCode" id="cb3"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Before: the last argument selects the kind of relation</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> def <span class="op">=</span> elab_rel_def(ctx<span class="op">,</span> span<span class="op">,</span> <span class="op">&amp;</span>def<span class="op">.</span>id<span class="op">,</span> <span class="op">&amp;</span>def<span class="op">.</span>not_typ<span class="op">,</span> <span class="op">&amp;</span>def<span class="op">.</span>hints<span class="op">,</span> <span class="cn">true</span>)<span class="op">?;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> def <span class="op">=</span> elab_rel_def(ctx<span class="op">,</span> span<span class="op">,</span> <span class="op">&amp;</span>def<span class="op">.</span>id<span class="op">,</span> <span class="op">&amp;</span>def<span class="op">.</span>not_typ<span class="op">,</span> <span class="op">&amp;</span>def<span class="op">.</span>hints<span class="op">,</span> <span class="cn">false</span>)<span class="op">?;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co">// After: separate functions make the distinction explicit</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> def_il_kind <span class="op">=</span> elab_extern_rel_def(ctx<span class="op">,</span> <span class="op">&amp;</span>extern_rel_def)<span class="op">?;</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> def_il_kind <span class="op">=</span> elab_rel_def(ctx<span class="op">,</span> <span class="op">&amp;</span>rel_def)<span class="op">?;</span></span></code></pre></div>
 <ul>
 <li>Agents sometimes over-engineered the code by adding <code>pub fn</code>s that were called only by tests, never by the implementation itself. Without careful review, those functions could slip into the codebase and become additional code to maintain.</li>
 </ul>
@@ -202,25 +271,25 @@ let def_il_kind = elab_rel_def(ctx, &amp;rel_def)?;</code></pre>
 <li>Variable names start with a type-based prefix. For example, a variable of Rust type <code>Exp</code> uses the prefix <code>exp</code>.</li>
 <li>The prefix is followed by the variable’s role. For the left and right operands of a binary <code>Exp</code>, the implementation uses:</li>
 </ul>
-<pre class="rust"><code>el::ExpKind::Bin(exp_l, op, exp_r) =&gt;
-    infer_bin_exp(ctx, &amp;exp.span, exp_l, *op, exp_r),</code></pre>
+<div class="sourceCode" id="cb4"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">el::ExpKind::</span>Bin(exp_l<span class="op">,</span> op<span class="op">,</span> exp_r) <span class="op">=&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    infer_bin_exp(ctx<span class="op">,</span> <span class="op">&amp;</span>exp<span class="op">.</span>span<span class="op">,</span> exp_l<span class="op">,</span> <span class="op">*</span>op<span class="op">,</span> exp_r)<span class="op">,</span></span></code></pre></div>
 <ul>
 <li>When needed, a suffix identifies the spec-language stage. Here, inferring the EL expressions produces IL expressions:</li>
 </ul>
-<pre class="rust"><code>let exp_l_il = unwrap!(infer_exp(ctx, exp_l));
-let exp_r_il = unwrap!(infer_exp(ctx, exp_r));</code></pre>
+<div class="sourceCode" id="cb5"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> exp_l_il <span class="op">=</span> <span class="pp">unwrap!</span>(infer_exp(ctx<span class="op">,</span> exp_l))<span class="op">;</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> exp_r_il <span class="op">=</span> <span class="pp">unwrap!</span>(infer_exp(ctx<span class="op">,</span> exp_r))<span class="op">;</span></span></code></pre></div>
 <p>With these rules, the names alone give me a good sense of what the code is doing. Compare the following versions of the same code.</p>
-<pre class="rust"><code>// Without the naming convention
-let text_type = typ_at(il::TypKind::Text, &amp;base.span);
-let base_checked = unwrap!(elab_exp(ctx, &amp;ExpExpect::plain(&amp;text_type), base));
-let index_type = typ_at(il::TypKind::Num(prim::num::Typ::Nat), &amp;index.span);
-let index_checked = unwrap!(elab_exp(ctx, &amp;ExpExpect::plain(&amp;index_type), index));
-
-// With the naming convention
-let typ_text_il = typ_at(il::TypKind::Text, &amp;exp_base.span);
-let exp_base_il = unwrap!(elab_exp(ctx, &amp;ExpExpect::plain(&amp;typ_text_il), exp_base));
-let typ_nat_il = typ_at(il::TypKind::Num(prim::num::Typ::Nat), &amp;exp_idx.span);
-let exp_idx_il = unwrap!(elab_exp(ctx, &amp;ExpExpect::plain(&amp;typ_nat_il), exp_idx));</code></pre>
+<div class="sourceCode" id="cb6"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Without the naming convention</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> text_type <span class="op">=</span> typ_at(<span class="pp">il::TypKind::</span>Text<span class="op">,</span> <span class="op">&amp;</span>base<span class="op">.</span>span)<span class="op">;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> base_checked <span class="op">=</span> <span class="pp">unwrap!</span>(elab_exp(ctx<span class="op">,</span> <span class="op">&amp;</span><span class="pp">ExpExpect::</span>plain(<span class="op">&amp;</span>text_type)<span class="op">,</span> base))<span class="op">;</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> index_type <span class="op">=</span> typ_at(<span class="pp">il::TypKind::</span>Num(<span class="pp">prim::num::Typ::</span>Nat)<span class="op">,</span> <span class="op">&amp;</span>index<span class="op">.</span>span)<span class="op">;</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> index_checked <span class="op">=</span> <span class="pp">unwrap!</span>(elab_exp(ctx<span class="op">,</span> <span class="op">&amp;</span><span class="pp">ExpExpect::</span>plain(<span class="op">&amp;</span>index_type)<span class="op">,</span> index))<span class="op">;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co">// With the naming convention</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> typ_text_il <span class="op">=</span> typ_at(<span class="pp">il::TypKind::</span>Text<span class="op">,</span> <span class="op">&amp;</span>exp_base<span class="op">.</span>span)<span class="op">;</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> exp_base_il <span class="op">=</span> <span class="pp">unwrap!</span>(elab_exp(ctx<span class="op">,</span> <span class="op">&amp;</span><span class="pp">ExpExpect::</span>plain(<span class="op">&amp;</span>typ_text_il)<span class="op">,</span> exp_base))<span class="op">;</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> typ_nat_il <span class="op">=</span> typ_at(<span class="pp">il::TypKind::</span>Num(<span class="pp">prim::num::Typ::</span>Nat)<span class="op">,</span> <span class="op">&amp;</span>exp_idx<span class="op">.</span>span)<span class="op">;</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> exp_idx_il <span class="op">=</span> <span class="pp">unwrap!</span>(elab_exp(ctx<span class="op">,</span> <span class="op">&amp;</span><span class="pp">ExpExpect::</span>plain(<span class="op">&amp;</span>typ_nat_il)<span class="op">,</span> exp_idx))<span class="op">;</span></span></code></pre></div>
 <p>The names distinguish spec expressions from spec types, the base role from the index role, and EL inputs from IL results.</p>
 <p>Sometimes, the convention produces long variable names. A short and crisp name is preferable, but inventing a perfect name can become another rabbit hole. Given the amount of code to port, I preferred a fixed set of rules that made names consistent and easy to recognize.</p>
 <p><strong>(2) Keep related functions together in a predictable order</strong></p>
@@ -232,24 +301,24 @@ let exp_idx_il = unwrap!(elab_exp(ctx, &amp;ExpExpect::plain(&amp;typ_nat_il), e
 <li>If a helper function has only one caller, place it immediately below that caller.</li>
 </ul>
 <p>For example, the spec expression type-inference code follows this layout.</p>
-<pre class="rust"><code>// == Expressions
-
-fn infer_exp(ctx: &amp;mut Context, exp: &amp;el::Exp) -&gt; Backtrack&lt;il::Exp&gt; {
-    let result = match &amp;exp.node {
-        el::ExpKind::Bool(value) =&gt; infer_bool_exp(ctx, &amp;exp.span, *value),
-        el::ExpKind::Num(_, value) =&gt; infer_num_exp(ctx, &amp;exp.span, value),
-        // Other match arms omitted
-    };
-    /* ... */
-}
-
-// - Boolean expression inference
-
-fn infer_bool_exp(...) { /* ... */ }
-
-// - Number expression inference
-
-fn infer_num_exp(...) { /* ... */ }</code></pre>
+<div class="sourceCode" id="cb7"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">// == Expressions</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">fn</span> infer_exp(ctx<span class="op">:</span> <span class="op">&amp;</span><span class="kw">mut</span> Context<span class="op">,</span> exp<span class="op">:</span> <span class="op">&amp;</span><span class="pp">el::</span>Exp) <span class="op">-&gt;</span> Backtrack<span class="op">&lt;</span><span class="pp">il::</span>Exp<span class="op">&gt;</span> <span class="op">{</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> result <span class="op">=</span> <span class="cf">match</span> <span class="op">&amp;</span>exp<span class="op">.</span>node <span class="op">{</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        <span class="pp">el::ExpKind::</span>Bool(value) <span class="op">=&gt;</span> infer_bool_exp(ctx<span class="op">,</span> <span class="op">&amp;</span>exp<span class="op">.</span>span<span class="op">,</span> <span class="op">*</span>value)<span class="op">,</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        <span class="pp">el::ExpKind::</span>Num(_<span class="op">,</span> value) <span class="op">=&gt;</span> infer_num_exp(ctx<span class="op">,</span> <span class="op">&amp;</span>exp<span class="op">.</span>span<span class="op">,</span> value)<span class="op">,</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Other match arms omitted</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="co">/* ... */</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co">// - Boolean expression inference</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="kw">fn</span> infer_bool_exp(<span class="op">...</span>) <span class="op">{</span> <span class="co">/* ... */</span> <span class="op">}</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co">// - Number expression inference</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="kw">fn</span> infer_num_exp(<span class="op">...</span>) <span class="op">{</span> <span class="co">/* ... */</span> <span class="op">}</span></span></code></pre></div>
 <p>The dispatcher gave me an overview of the cases, and the handlers let me focus on each case separately. The section comments made the organization easy to scan. Together, these conventions reduced the amount of jumping around I had to do while reviewing.</p>
 <h3 id="d.-i-didnt-review-the-ai-generated-tests">D. I didn’t review the AI-generated tests</h3>
 <p>I used <code>superpowers</code><a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>, a collection of skills that guides AI agents through planning, implementation, testing, and code review. One of its central principles is test-driven development. Agents are instructed to write a test, check that it fails initially, and then implement the code needed to make it pass. I did not assess whether <code>superpowers</code> produced observably better results, but I generally believe that having concrete tests helps agents check their work.</p>
@@ -267,23 +336,23 @@ p4spec-rust/
 <ul>
 <li><strong>Rust traits</strong> let me define consistent APIs over the spec language AST. For instance, to collect free identifiers from different AST nodes, I would define separate <code>free_*</code> functions in OCaml. In Rust, I can define a trait with a single <code>free_ids</code> method across these types.</li>
 </ul>
-<pre class="ocaml"><code>let rec free_exp (exp : exp) : t = (* ... *)
-and free_arg (arg : arg) : t = (* ... *)
-and free_args (args : arg list) : t =
-  args |&gt; List.map free_arg |&gt; List.fold_left ( + ) empty</code></pre>
-<pre class="rust"><code>pub trait FreeIds {
-    fn free_ids(&amp;self) -&gt; IdSet { /* ... */ }
-    fn free_ids_into(&amp;self, ids_free: &amp;mut IdSet) { /* ... */ }
-}
-impl&lt;T: FreeIds&gt; FreeIds for [T] {
-    fn free_ids_into(&amp;self, ids_free: &amp;mut IdSet) { /* ... */ }
-}
-
-// Call-sites
-let frees_l = exp_l.free_ids();
-let frees_r = exp_r.free_ids();
-// ...
-let frees_args = args_input.as_slice().free_ids();</code></pre>
+<div class="sourceCode" id="cb9"><pre class="sourceCode ocaml"><code class="sourceCode ocaml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> <span class="kw">rec</span> free_exp (<span class="dt">exp</span> : <span class="dt">exp</span>) : t = <span class="co">(* ... *)</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">and</span> free_arg (arg : arg) : t = <span class="co">(* ... *)</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="kw">and</span> free_args (args : arg <span class="dt">list</span>) : t =</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  args |&gt; <span class="dt">List</span>.map free_arg |&gt; <span class="dt">List</span>.fold_left ( + ) empty</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode rust"><code class="sourceCode rust"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">pub</span> <span class="kw">trait</span> FreeIds <span class="op">{</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">fn</span> free_ids(<span class="op">&amp;</span><span class="kw">self</span>) <span class="op">-&gt;</span> IdSet <span class="op">{</span> <span class="co">/* ... */</span> <span class="op">}</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">fn</span> free_ids_into(<span class="op">&amp;</span><span class="kw">self</span><span class="op">,</span> ids_free<span class="op">:</span> <span class="op">&amp;</span><span class="kw">mut</span> IdSet) <span class="op">{</span> <span class="co">/* ... */</span> <span class="op">}</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">impl</span><span class="op">&lt;</span>T<span class="op">:</span> FreeIds<span class="op">&gt;</span> FreeIds <span class="cf">for</span> [T] <span class="op">{</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">fn</span> free_ids_into(<span class="op">&amp;</span><span class="kw">self</span><span class="op">,</span> ids_free<span class="op">:</span> <span class="op">&amp;</span><span class="kw">mut</span> IdSet) <span class="op">{</span> <span class="co">/* ... */</span> <span class="op">}</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="co">// Call-sites</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> frees_l <span class="op">=</span> exp_l<span class="op">.</span>free_ids()<span class="op">;</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> frees_r <span class="op">=</span> exp_r<span class="op">.</span>free_ids()<span class="op">;</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co">// ...</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="kw">let</span> frees_args <span class="op">=</span> args_input<span class="op">.</span>as_slice()<span class="op">.</span>free_ids()<span class="op">;</span></span></code></pre></div>
 <ul>
 <li>I miss OCaml’s fast builds and <code>dune</code>’s automatic cleanup of obsolete build artifacts. On my machine, with dependencies already compiled, a clean release build took <strong>24 seconds</strong> with <code>dune build --profile release</code> and <strong>65 seconds</strong> with <code>cargo build --release</code>. Also, <code>dune</code> automatically removes build artifacts that no longer correspond to the current build rules, whereas <code>cargo</code> does not currently garbage-collect obsolete build artifacts in <code>target</code>. I have to clean those up myself with <code>cargo clean</code>. At one point, I had only 2.7 GiB of free disk space left.</li>
 </ul>
