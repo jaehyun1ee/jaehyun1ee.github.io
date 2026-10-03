@@ -140,10 +140,10 @@ cannot have non-pure premises alongside an otherwise premise</code></pre>
 <p>Throughout the port, I planned the work with AI agents, asked them to implement it, and reviewed the resulting code. From here I give a high-level overview of how I guided the agents through planning, implementation, and code review. These are fairly basic ways of using AI, but I hope sharing the details will be useful to someone.</p>
 <p>Two notes before proceeding:</p>
 <ul>
-<li><p>I was already very familiar with the OCaml codebase, having developed and maintained P4-SpecTec for over two years. In other words, I knew what I was going to implement.</p></li>
-<li><p>I did <em>not</em> build a custom automated workflow. I used skills to make the agents follow certain rules, but much of the planning and review happened interactively through conversation.</p>
-<h2 id="planning---two-copies-of-a-plan">6. Planning - Two copies of a plan</h2></li>
+<li>I was already very familiar with the OCaml codebase, having developed and maintained P4-SpecTec for over two years. In other words, I knew what I was going to implement.</li>
+<li>I did <em>not</em> build a custom automated workflow. I used skills to make the agents follow certain rules, but much of the planning and review happened interactively through conversation.</li>
 </ul>
+<h2 id="planning---two-copies-of-a-plan">6. Planning - Two copies of a plan</h2>
 <p>All four areas, (i) features, (ii) comments, (iii) diagnostics, and (iv) release, were split into smaller tasks, with plans drafted by AI agents.</p>
 <p>The plans were tracked in two separate places: the GitHub issue tracker and local plan files that were not tracked in git. The separation was deliberate. I used the GitHub issues as a dashboard to discuss high-level milestones and track porting progress with the agents, without getting into details such as API design or code organization. For example, the image below shows part of the issue tracking progress on (i) features.</p>
 <figure>
